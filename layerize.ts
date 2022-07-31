@@ -94,15 +94,15 @@ function expandColor(c: any) {
     c = "#000080";
   }
   // c is a hex color that might be shorthand (3 instead of 6 digits)
-  if (c.substr(0, 1) === "#" && c.length === 4) {
+  if (c.substring(0, 1) === "#" && c.length === 4) {
     c =
       "#" +
-      c.substr(1, 1) +
-      c.substr(1, 1) +
-      c.substr(2, 1) +
-      c.substr(2, 1) +
-      c.substr(3, 1) +
-      c.substr(3, 1);
+      c.substring(1, 2) +
+      c.substring(1, 2) +
+      c.substring(2, 3) +
+      c.substring(2, 3) +
+      c.substring(3, 4) +
+      c.substring(3, 4);
   }
   if (c) {
     return c + "ff";
@@ -113,7 +113,7 @@ function applyOpacity(c: any, o: number) {
   if (c === undefined || c === "none") {
     return c;
   }
-  var opacity = (o * parseInt(c.substr(7), 16)) / 255;
+  var opacity = (o * parseInt(c.substring(7), 16)) / 255;
   opacity = Math.round(opacity * 255);
   //// @ts-expect-error TS(2322): Type 'string' is not assignable to type 'number'.
   var hex_opacity = opacity.toString(16);
@@ -121,7 +121,7 @@ function applyOpacity(c: any, o: number) {
     //// @ts-expect-error TS(2322): Type 'string' is not assignable to type 'number'.
     hex_opacity = "0" + hex_opacity;
   }
-  return c.substr(0, 7) + hex_opacity;
+  return c.substring(0, 7) + hex_opacity;
 }
 
 function hexByte(b: number): string {
@@ -130,7 +130,8 @@ function hexByte(b: number): string {
     s = "0" + s;
   } else if (s.length > 2) {
     // shouldn't happen
-    s = s.substr(s.length - 2, 2);
+    // s = s.substr(s.length - 2, 2);
+    s = s.substring(s.length - 2, s.length);
   }
   return s;
 }
@@ -146,7 +147,7 @@ function decodePath(d: string) {
       break;
     }
     var len = matches[0].length;
-    d = d.substr(len);
+    d = d.substring(len);
     var op = matches[1];
     var coords;
     var c = "\\s*(-?(?:[0-9]*\\.[0-9]+|[0-9]+)),?";
@@ -154,7 +155,7 @@ function decodePath(d: string) {
       // @ts-expect-error TS(2322): Type 'undefined' is not assignable to type 'number... Remove this comment to see the full error message
       segStart = undefined;
       while ((coords = d.match("^" + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x = Number(coords[1]);
         y = Number(coords[2]);
         if (segStart === undefined) {
@@ -164,7 +165,7 @@ function decodePath(d: string) {
       }
     } else if (op === "L") {
       while ((coords = d.match("^" + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x = Number(coords[1]);
         y = Number(coords[2]);
         result.push([x, y]);
@@ -173,7 +174,7 @@ function decodePath(d: string) {
       // @ts-expect-error TS(2322): Type 'undefined' is not assignable to type 'number... Remove this comment to see the full error message
       segStart = undefined;
       while ((coords = d.match("^" + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x += Number(coords[1]);
         y += Number(coords[2]);
         if (segStart === undefined) {
@@ -183,38 +184,38 @@ function decodePath(d: string) {
       }
     } else if (op === "l") {
       while ((coords = d.match("^" + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x += Number(coords[1]);
         y += Number(coords[2]);
         result.push([x, y]);
       }
     } else if (op === "H") {
       while ((coords = d.match("^" + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x = Number(coords[1]);
         result.push([x, y]);
       }
     } else if (op === "h") {
       while ((coords = d.match("^" + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x += Number(coords[1]);
         result.push([x, y]);
       }
     } else if (op === "V") {
       while ((coords = d.match("^" + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         y = Number(coords[1]);
         result.push([x, y]);
       }
     } else if (op === "v") {
       while ((coords = d.match("^" + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         y += Number(coords[1]);
         result.push([x, y]);
       }
     } else if (op === "C") {
       while ((coords = d.match("^" + c + c + c + c + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x = Number(coords[1]);
         y = Number(coords[2]);
         result.push([x, y]);
@@ -227,7 +228,7 @@ function decodePath(d: string) {
       }
     } else if (op === "c") {
       while ((coords = d.match("^" + c + c + c + c + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         result.push([x + Number(coords[1]), y + Number(coords[2])]);
         result.push([x + Number(coords[3]), y + Number(coords[4])]);
         x += Number(coords[5]);
@@ -236,7 +237,7 @@ function decodePath(d: string) {
       }
     } else if (op === "S") {
       while ((coords = d.match("^" + c + c + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x = Number(coords[1]);
         y = Number(coords[2]);
         result.push([x, y]);
@@ -246,7 +247,7 @@ function decodePath(d: string) {
       }
     } else if (op === "s") {
       while ((coords = d.match("^" + c + c + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         result.push([x + Number(coords[1]), y + Number(coords[2])]);
         x += Number(coords[3]);
         y += Number(coords[4]);
@@ -254,7 +255,7 @@ function decodePath(d: string) {
       }
     } else if (op === "Q") {
       while ((coords = d.match("^" + c + c + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         result.push([x + Number(coords[1]), y + Number(coords[2])]);
         x = Number(coords[3]);
         y = Number(coords[4]);
@@ -262,7 +263,7 @@ function decodePath(d: string) {
       }
     } else if (op === "q") {
       while ((coords = d.match("^" + c + c + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         result.push([x + Number(coords[1]), y + Number(coords[2])]);
         x += Number(coords[3]);
         y += Number(coords[4]);
@@ -270,14 +271,14 @@ function decodePath(d: string) {
       }
     } else if (op === "T") {
       while ((coords = d.match("^" + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x = Number(coords[1]);
         y = Number(coords[2]);
         result.push([x, y]);
       }
     } else if (op === "t") {
       while ((coords = d.match("^" + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x += Number(coords[1]);
         y += Number(coords[2]);
         result.push([x, y]);
@@ -285,14 +286,14 @@ function decodePath(d: string) {
     } else if (op === "A") {
       // we don't fully handle arc, just grab the endpoint
       while ((coords = d.match("^" + c + c + c + c + c + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x = Number(coords[6]);
         y = Number(coords[7]);
         result.push([x, y]);
       }
     } else if (op === "a") {
       while ((coords = d.match("^" + c + c + c + c + c + c + c))) {
-        d = d.substr(coords[0].length);
+        d = d.substring(coords[0].length);
         x += Number(coords[6]);
         y += Number(coords[7]);
         result.push([x, y]);
@@ -401,9 +402,9 @@ function recordGradient(grad: any, urlColor: any) {
   if (stopCount > 0) {
     // @ts-expect-error TS(7006): Parameter 'stop' implicitly has an 'any' type.
     stops.forEach(function (stop) {
-      r = r + parseInt(stop.substr(1, 2), 16);
-      g = g + parseInt(stop.substr(3, 2), 16);
-      b = b + parseInt(stop.substr(5, 2), 16);
+      r = r + parseInt(stop.substing(1, 3), 16);
+      g = g + parseInt(stop.substring(3, 5), 16);
+      b = b + parseInt(stop.substring(5, 7), 16);
     });
     r = Math.round(r / stopCount);
     g = Math.round(g / stopCount);
@@ -531,9 +532,9 @@ function processFile(fileName: string, data: Buffer) {
           e["$"]["transform"] = t;
         }
 
-        if (fill && fill.substr(0, 3) === "url") {
+        if (fill && fill.substring(0, 3) === "url") {
           // @ts-expect-error TS(2403): Subsequent variable declarations must have the sam... Remove this comment to see the full error message
-          var id = fill.substr(4, fill.length - 5);
+          var id = fill.substring(4, fill.length - 1);
           // @ts-expect-error TS(7053): Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
           if (urlColor[id] === undefined) {
             console.log("### " + baseName + ": no mapping for " + fill);
@@ -542,9 +543,9 @@ function processFile(fileName: string, data: Buffer) {
             fill = urlColor[id];
           }
         }
-        if (stroke && stroke.substr(0, 3) === "url") {
+        if (stroke && stroke.substring(0, 3) === "url") {
           // @ts-expect-error TS(2403): Subsequent variable declarations must have the sam... Remove this comment to see the full error message
-          var id = stroke.substr(4, stroke.length - 5);
+          var id = stroke.substring(4, stroke.length - 1);
           // @ts-expect-error TS(7053): Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
           if (urlColor[id] === undefined) {
             console.log("### " + baseName + ": no mapping for " + stroke);
@@ -774,7 +775,7 @@ function generateTTX() {
   var index = 0;
   // @ts-expect-error TS(7006): Parameter 'c' implicitly has an 'any' type.
   colors.forEach(function (c: string) {
-    if (c.substr(0, 3) === "url") {
+    if (c.substring(0, 3) === "url") {
       console.log("unexpected color: " + c);
       c = "#000000ff";
     }
@@ -879,7 +880,7 @@ rmdir(targetDir, function () {
     .on("entry", function (e: any) {
       // var data = new Buffer();
       var fileName = e.path.replace(/^.*\//, ""); // strip any directory names
-      if (e.type === "File" && e.path.substr(-4, 4) === ".svg") {
+      if (e.type === "File" && e.path.substring(e.path.length-4, e.path.length) === ".svg") {
         // Check for an override; if present, read that instead
         var o = overrides.indexOf(fileName);
         if (o >= 0) {
