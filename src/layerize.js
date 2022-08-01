@@ -56,46 +56,11 @@ var ligatures = [];
 // [unicode1, unicode2] -> components[]
 let colors = [];
 var colorToId = {};
-// interface Path {
-//   color: string;
-//   paths: [
-//     {
-//       $: {
-//         d: string;
-//         fill: string;
-//         stroke: string;
-//         "stroke-width": string | null;
-//       };
-//       "#name": "path";
-//     }
-//   ];
-// }
-// var curry = function <T>(f: Function, arg: T) {
-//   var parameters = Array.prototype.slice.call(arguments, 1);
-//   return function (this: T) {
-//     return f.apply(this, parameters.concat(Array.prototype.slice.call(arg, 0)));
-//   };
-// };
-// var curry = function (f: { (xml: xmlbuilder.XMLElement, p: any): void; (xml: xmlbuilder.XMLElement, p: any): void; apply?: any; }) {
-//   var parameters = Array.prototype.slice.call(arguments, 1);
-//   return function () {
-//       return f.apply(this, parameters.concat(
-//           Array.prototype.slice.call(arguments, 0)
-//       ));
-//   };
-// };
-const curry = (f) => {
-    return function (a) {
-        return function (b) {
-            return f(a, b);
-        };
-    };
-};
 // p: xmlbuilder.XMLElement
 const addToXML = (xml, p) => {
-    console.log("---");
-    console.log(p);
-    console.log("---");
+    // console.log("---");
+    // console.log(p);
+    // console.log("---");
     if (p["#name"] === "g") {
         var g = xml.ele("g", p["$"]);
         if (p["$$"]) {
@@ -410,12 +375,10 @@ function hasTransform(p) {
 function addOrMerge(paths, p, color) {
     var i = -1;
     if (!hasTransform(p)) {
-        console.log(paths);
+        // console.log(paths);
         i = paths.length - 1;
         var bbox = getBBox(p);
-        console.log(`i: ${i}`);
         while (i >= 0) {
-            console.log("L399");
             var hasOverlap = false;
             paths[i].paths.forEach(function (pp) {
                 if (hasTransform(pp) || overlap(bbox, getBBox(pp))) {
@@ -432,12 +395,10 @@ function addOrMerge(paths, p, color) {
             --i;
         }
     }
-    console.log(`L416 ${i}`);
     if (i >= 0) {
         paths[i].paths.push(p);
     }
     else {
-        console.log("L420");
         if (paths === undefined) {
             paths = [{ color: color, paths: [p] }];
         }
@@ -445,7 +406,6 @@ function addOrMerge(paths, p, color) {
             paths.push({ color: color, paths: [p] });
         }
     }
-    console.log(paths);
 }
 function recordGradient(grad, urlColor) {
     var stops = [];
@@ -472,13 +432,14 @@ function recordGradient(grad, urlColor) {
     var color = "#" + hexByte(r) + hexByte(g) + hexByte(b);
     urlColor[id] = color;
 }
-function processFile(fileName, data, targetDir) {
-    // strip .svg extension off the name
+const patchedProcessFile = (fileName, data, targetDir) => {
     var baseName = fileName.replace(".svg", "");
     // Twitter doesn't include the VS16 in the keycap filenames
     // ! this is probably a bug
     if (/^[23][0-9a]-20e3$/.test(baseName)) {
         let orig = baseName;
+        // VS16を使わないタイプのキーキャップも生成する
+        processFile(baseName, data, targetDir);
         baseName = baseName.replace("-20e3", "-fe0f-20e3");
         console.log(`found mis-named keycap ${orig}, renamed to ${baseName}`);
     }
@@ -487,6 +448,22 @@ function processFile(fileName, data, targetDir) {
         baseName = "1f441-fe0f-200d-1f5e8-fe0f";
         console.log(`found mis-named 1f441-200d-1f5e8, renamed to ${baseName}`);
     }
+    processFile(baseName, data, targetDir);
+};
+function processFile(baseName, data, targetDir) {
+    // strip .svg extension off the name
+    // var baseName = fileName.replace(".svg", "");
+    // // Twitter doesn't include the VS16 in the keycap filenames
+    // // ! this is probably a bug
+    // if (/^[23][0-9a]-20e3$/.test(baseName)) {
+    //   let orig = baseName;
+    //   baseName = baseName.replace("-20e3", "-fe0f-20e3");
+    //   console.log(`found mis-named keycap ${orig}, renamed to ${baseName}`);
+    // } else if (baseName === "1f441-200d-1f5e8") {
+    //   // ...or in the "eye in speech bubble"'s
+    //   baseName = "1f441-fe0f-200d-1f5e8-fe0f";
+    //   console.log(`found mis-named 1f441-200d-1f5e8, renamed to ${baseName}`);
+    // }
     let parser = new xml2js_1.default.Parser({
         preserveChildrenOrder: true,
         explicitChildren: true,
@@ -498,10 +475,9 @@ function processFile(fileName, data, targetDir) {
     // split name of glyph that corresponds to multi-char ligature
     let unicodes = baseName.split("-");
     parser.parseString(data, function (err, result) {
-        console.log(result);
+        // console.log(result);
         if (err) {
             console.log("Error Occured: " + err);
-            console.log(err);
             // exit();
         }
         // var paths: [Path];
@@ -560,19 +536,6 @@ function processFile(fileName, data, targetDir) {
                         var x = Number(m[2]);
                         var y = Number(m[3]);
                         var rep = `translate(${x},${y}) rotate(${a}) translate(${-x},${-y})`;
-                        // "translate(" +
-                        // x +
-                        // " " +
-                        // y +
-                        // ") " +
-                        // "rotate(" +
-                        // a +
-                        // ") " +
-                        // "translate(" +
-                        // -x +
-                        // " " +
-                        // -y +
-                        // ")";
                         t = t.replace(m[0], rep);
                     }
                     e["$"]["transform"] = t;
@@ -651,7 +614,8 @@ function processFile(fileName, data, targetDir) {
                     // slightly thinner symbols (fill only, no stroke)
                     function skipStrokeOnZodiacSign(u) {
                         u = parseInt(u, 16);
-                        return u >= 0x2648 && u <= 0x2653;
+                        // return u >= 0x2648 && u <= 0x2653;
+                        return false;
                     }
                     if (stroke !== "none" && !skipStrokeOnZodiacSign(unicodes[0])) {
                         if (e["#name"] !== "path" ||
@@ -684,10 +648,6 @@ function processFile(fileName, data, targetDir) {
                 svg.att(i, result["svg"]["$"][i]);
             }
             //// @ts-expect-error TS(2554): Expected 1 arguments, but got 2.
-            console.log("svg: ");
-            console.log(svg);
-            console.log(path, path.paths);
-            // path.paths.forEach(curry(addToXML)(svg));
             path.paths.forEach((p) => addToXML(svg, p));
             var svgString = svg.toString();
             // see if there's an already-defined component that matches this shape
@@ -709,16 +669,37 @@ function processFile(fileName, data, targetDir) {
                 //// @ts-expect-error TS(7053): Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
                 colorToId[path.color] = colors.length;
                 colors.push(path.color);
-                console.log("Added color " + path.color);
             }
             layerIndex = layerIndex + 1;
         });
+        // console.log(unicodes[0]);
         if (unicodes.length === 1) {
             // simple character (single codepoint)
-            chars.push({ unicode: unicodes[0], components: layers });
-            console.log("Added character " + chars);
+            if (
+            // ignore keycap glyphs
+            [
+                "23",
+                "2a",
+                "30",
+                "31",
+                "32",
+                "33",
+                "34",
+                "35",
+                "36",
+                "37",
+                "38",
+                "39",
+            ].indexOf(unicodes[0]) !== -1) {
+                // console.log(unicodes[0])
+                console.log(`found a digit, ${unicodes[0]}`);
+            }
+            else {
+                chars.push({ unicode: unicodes[0], components: layers });
+            }
         }
         else {
+            // console.log(unicodes[0])
             ligatures.push({ unicodes: unicodes, components: layers });
             // create the placeholder glyph for the ligature (to be mapped to a set of color layers)
             fs_1.default.writeFileSync(targetDir + "/glyphs/u" + unicodes.join("_") + ".svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" enable-background="new 0 0 64 64"></svg>');
@@ -814,6 +795,9 @@ function generateTTX(targetDir, extraLigatures, fontName) {
     var ligatureSets = {};
     var ligatureSetKeys = [];
     var addLigToSet = function (lig) {
+        if (lig.unicodes[0] === "23") {
+            console.log("Found digits");
+        }
         var startGlyph = "u" + lig.unicodes[0];
         var components = "u" + lig.unicodes.slice(1).join(",u");
         var glyphName = lig.glyphName || "u" + lig.unicodes.join("_");
@@ -864,7 +848,7 @@ const RemoveJunk = (targetDir, extrasDir, overridesDir, sourceZip, fontName, ext
             if (f.endsWith(".svg")) {
                 var data = fs_1.default.readFileSync(extrasDir + "/" + f);
                 // console.log(`L864 data: ${data}`);
-                processFile(f, data, targetDir);
+                patchedProcessFile(f, data, targetDir);
             }
         });
         // Get list of glyphs in the "overrides" directory, which will be used to replace
@@ -884,7 +868,7 @@ const RemoveJunk = (targetDir, extrasDir, overridesDir, sourceZip, fontName, ext
                     console.log("overriding " + fileName + " with local copy");
                     var data = fs_1.default.readFileSync(overridesDir + "/" + fileName);
                     // console.log(`L885 data: ${data}`);
-                    processFile(fileName, data, targetDir);
+                    patchedProcessFile(fileName, data, targetDir);
                     overrides.splice(o, 1);
                     e.autodrain();
                 }
@@ -895,7 +879,7 @@ const RemoveJunk = (targetDir, extrasDir, overridesDir, sourceZip, fontName, ext
                     e.on("end", function () {
                         // console.log(e, typeof e);
                         // console.log(`L894 data: ${data}`);
-                        processFile(fileName, data, targetDir);
+                        patchedProcessFile(fileName, data, targetDir);
                     });
                 }
             }
