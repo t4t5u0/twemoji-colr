@@ -4,33 +4,27 @@ import unzipper from "unzipper";
 import xmlbuilder from "xmlbuilder";
 import xml2js from "xml2js";
 import { exit } from "process";
+import { ExtraLigature, Path } from "./interface";
 
-let sourceZip = process.argv[2];
-let overridesDir = process.argv[3];
-let extrasDir = process.argv[4];
-let targetDir = process.argv[5];
-let fontName = process.argv[6];
+const checkExistFont = (fontName: string) => {
+  if (fontName === undefined) {
+    console.error("### Missing font name.");
+    console.error(
+      "### Usage: node " +
+        process.argv[1] +
+        " source-SVGs.zip overrides-dir extras-dir build-dir font-name"
+    );
+    exit(1);
+  }
+};
 
-if (fontName === undefined) {
-  console.error("### Missing font name.");
-  console.error(
-    "### Usage: node " +
-      process.argv[1] +
-      " source-SVGs.zip overrides-dir extras-dir build-dir font-name"
+const getExtraLigatures = (extrasDir: string): [ExtraLigature] => {
+  // Extra ligature rules to support ZWJ sequences that already exist as individual characters
+  let extraLigatures: [ExtraLigature] = JSON.parse(
+    fs.readFileSync(extrasDir + "/ligatures.json").toString()
   );
-  exit(1);
-}
-
-// Extra ligature rules to support ZWJ sequences that already exist as individual characters
-
-interface ExtraLIature {
-  glyphName: string;
-  unicodes: [string];
-}
-
-let extraLigatures: [ExtraLIature] = JSON.parse(
-  fs.readFileSync(extrasDir + "/ligatures.json").toString()
-);
+  return extraLigatures;
+};
 
 var components = {};
 // maps svg-data -> glyphName
@@ -43,31 +37,58 @@ var chars: any = [];
 var ligatures: any = [];
 // [unicode1, unicode2] -> components[]
 
-let colors = [
-  "Red",
-  "red",
-  "Green",
-  "green",
-  "Blue",
-  "blue",
-  "Navy",
-  "navy",
-  undefined,
-];
+let colors: string[] = [];
 var colorToId: any = {};
 
-var curry = function <T>(f: Function, arg: T) {
-  var parameters = Array.prototype.slice.call(arguments, 1);
-  return function (this: T) {
-    return f.apply(this, parameters.concat(Array.prototype.slice.call(arg, 0)));
+// interface Path {
+//   color: string;
+//   paths: [
+//     {
+//       $: {
+//         d: string;
+//         fill: string;
+//         stroke: string;
+//         "stroke-width": string | null;
+//       };
+//       "#name": "path";
+//     }
+//   ];
+// }
+
+// var curry = function <T>(f: Function, arg: T) {
+//   var parameters = Array.prototype.slice.call(arguments, 1);
+//   return function (this: T) {
+//     return f.apply(this, parameters.concat(Array.prototype.slice.call(arg, 0)));
+//   };
+// };
+
+// var curry = function (f: { (xml: xmlbuilder.XMLElement, p: any): void; (xml: xmlbuilder.XMLElement, p: any): void; apply?: any; }) {
+//   var parameters = Array.prototype.slice.call(arguments, 1);
+//   return function () {
+//       return f.apply(this, parameters.concat(
+//           Array.prototype.slice.call(arguments, 0)
+//       ));
+//   };
+// };
+
+const curry = (f: { (xml: xmlbuilder.XMLElement, p: any): any }) => {
+  return function (a: xmlbuilder.XMLElement) {
+    return function (b: any) {
+      return f(a, b);
+    };
   };
 };
 
-var addToXML = function (xml: xmlbuilder.XMLElement, p: any) {
+// p: xmlbuilder.XMLElement
+const addToXML = (xml: xmlbuilder.XMLElement, p: any) => {
+  console.log("---");
+  console.log(p);
+  console.log("---");
   if (p["#name"] === "g") {
     var g = xml.ele("g", p["$"]);
     if (p["$$"]) {
-      p["$$"].forEach(curry(addToXML, g));
+      // p["$$"].forEach(curry(addToXML)(g));
+      p["$$"].forEach((item: any) => addToXML(g, item));
     }
   } else {
     xml.ele(p["#name"], p["$"]);
@@ -117,7 +138,7 @@ function applyOpacity(c: any, o: number) {
   opacity = Math.round(opacity * 255);
   //// @ts-expect-error TS(2322): Type 'string' is not assignable to type 'number'.
   var hex_opacity = opacity.toString(16);
-  if ((opacity as any).length === 1) {
+  if (hex_opacity.length === 1) {
     //// @ts-expect-error TS(2322): Type 'string' is not assignable to type 'number'.
     hex_opacity = "0" + hex_opacity;
   }
@@ -360,9 +381,12 @@ function hasTransform(p: any) {
 function addOrMerge(paths: any, p: any, color: any) {
   var i = -1;
   if (!hasTransform(p)) {
+    console.log(paths);
     i = paths.length - 1;
     var bbox = getBBox(p);
+    console.log(`i: ${i}`);
     while (i >= 0) {
+      console.log("L399");
       var hasOverlap = false;
       paths[i].paths.forEach(function (pp: any) {
         if (hasTransform(pp) || overlap(bbox, getBBox(pp))) {
@@ -379,11 +403,18 @@ function addOrMerge(paths: any, p: any, color: any) {
       --i;
     }
   }
+  console.log(`L416 ${i}`);
   if (i >= 0) {
     paths[i].paths.push(p);
   } else {
-    paths.push({ color: color, paths: [p] });
+    console.log("L420");
+    if (paths === undefined) {
+      paths = [{ color: color, paths: [p] }];
+    } else {
+      paths.push({ color: color, paths: [p] });
+    }
   }
+  console.log(paths);
 }
 
 function recordGradient(grad: any, urlColor: any) {
@@ -414,7 +445,7 @@ function recordGradient(grad: any, urlColor: any) {
   urlColor[id] = color;
 }
 
-function processFile(fileName: string, data: Buffer) {
+function processFile(fileName: string, data: Buffer, targetDir: string) {
   // strip .svg extension off the name
   var baseName = fileName.replace(".svg", "");
   // Twitter doesn't include the VS16 in the keycap filenames
@@ -434,7 +465,7 @@ function processFile(fileName: string, data: Buffer) {
     explicitChildren: true,
     explicitArray: true,
   });
-  console.log(`L433 data: ${data}`);
+  // console.log(`L433 data: ${data}`);
   // Save the original file also for visual comparison
   fs.writeFileSync(targetDir + "/colorGlyphs/u" + baseName + ".svg", data);
 
@@ -442,12 +473,15 @@ function processFile(fileName: string, data: Buffer) {
   let unicodes = baseName.split("-");
 
   parser.parseString(data, function (err: any, result: any) {
-    console.log(`result: ${result}`);
+    console.log(result);
     if (err) {
+      console.log("Error Occured: " + err);
       console.log(err);
-      exit();
+      // exit();
     }
-    var paths: any = [];
+    // var paths: [Path];
+    var paths: Path[] = [];
+    // var paths: any;
     var defs = {};
     var urlColor = {};
 
@@ -513,20 +547,20 @@ function processFile(fileName: string, data: Buffer) {
             var a = Number(m[1]);
             var x = Number(m[2]);
             var y = Number(m[3]);
-            var rep =
-              "translate(" +
-              x +
-              " " +
-              y +
-              ") " +
-              "rotate(" +
-              a +
-              ") " +
-              "translate(" +
-              -x +
-              " " +
-              -y +
-              ")";
+            var rep = `translate(${x},${y}) rotate(${a}) translate(${-x},${-y})`;
+            // "translate(" +
+            // x +
+            // " " +
+            // y +
+            // ") " +
+            // "rotate(" +
+            // a +
+            // ") " +
+            // "translate(" +
+            // -x +
+            // " " +
+            // -y +
+            // ")";
             t = t.replace(m[0], rep);
           }
           e["$"]["transform"] = t;
@@ -650,7 +684,7 @@ function processFile(fileName: string, data: Buffer) {
 
     var layerIndex = 0;
     var layers: any = [];
-    // @ts-expect-error TS(7006): Parameter 'path' implicitly has an 'any' type.
+    //// @ts-expect-error TS(7006): Parameter 'path' implicitly has an 'any' type.
     paths.forEach(function (path) {
       var svg = xmlbuilder.create("svg");
       for (var i in result["svg"]["$"]) {
@@ -658,7 +692,11 @@ function processFile(fileName: string, data: Buffer) {
       }
 
       //// @ts-expect-error TS(2554): Expected 1 arguments, but got 2.
-      path.paths.forEach(curry(addToXML, svg));
+      console.log("svg: ");
+      console.log(svg);
+      console.log(path, path.paths);
+      // path.paths.forEach(curry(addToXML)(svg));
+      path.paths.forEach((p: any) => addToXML(svg, p));
       var svgString = svg.toString();
 
       // see if there's an already-defined component that matches this shape
@@ -715,7 +753,11 @@ function processFile(fileName: string, data: Buffer) {
   });
 }
 
-function generateTTX() {
+function generateTTX(
+  targetDir: string,
+  extraLigatures: [ExtraLigature],
+  fontName: string
+) {
   // After we've processed all the source SVGs, we'll generate the auxiliary
   // files needed for OpenType font creation.
   // We also save the color-layer info in a separate JSON file, for the convenience
@@ -773,8 +815,8 @@ function generateTTX() {
   CPAL.ele("numPaletteEntries", { value: colors.length });
   var palette = CPAL.ele("palette", { index: 0 });
   var index = 0;
-  // @ts-expect-error TS(7006): Parameter 'c' implicitly has an 'any' type.
-  colors.forEach(function (c: string) {
+  //// @ts-expect-error TS(7006): Parameter 'c' implicitly has an 'any' type.
+  colors.forEach((c: string) => {
     if (c.substring(0, 3) === "url") {
       console.log("unexpected color: " + c);
       c = "#000000ff";
@@ -854,55 +896,92 @@ function generateTTX() {
   );
 }
 
-// Delete and re-create target directory, to remove any pre-existing junk
-rmdir(targetDir, function () {
-  fs.mkdirSync(targetDir);
-  fs.mkdirSync(targetDir + "/glyphs");
-  fs.mkdirSync(targetDir + "/colorGlyphs");
+const RemoveJunk = (
+  targetDir: string,
+  extrasDir: string,
+  overridesDir: string,
+  sourceZip: string,
+  fontName: string,
+  extraLigatures: [ExtraLigature]
+) => {
+  // Delete and re-create target directory, to remove any pre-existing junk
+  rmdir(targetDir, function () {
+    fs.mkdirSync(targetDir);
+    fs.mkdirSync(targetDir + "/glyphs");
+    fs.mkdirSync(targetDir + "/colorGlyphs");
 
-  // Read glyphs from the "extras" directory
-  var extras = fs.readdirSync(extrasDir);
-  extras.forEach(function (f: any) {
-    if (f.endsWith(".svg")) {
-      var data = fs.readFileSync(extrasDir + "/" + f);
-      console.log(`L864 data: ${data}`);
-      processFile(f, data);
-    }
-  });
-
-  // Get list of glyphs in the "overrides" directory, which will be used to replace
-  // same-named glyphs from the main source archive
-  var overrides = fs.readdirSync(overridesDir);
-
-  // Finally, we're ready to process the images from the main source archive:
-  fs.createReadStream(sourceZip)
-    .pipe(unzipper.Parse())
-    .on("entry", function (e: any) {
-      // var data = new Buffer();
-      var fileName = e.path.replace(/^.*\//, ""); // strip any directory names
-      if (e.type === "File" && e.path.substring(e.path.length-4, e.path.length) === ".svg") {
-        // Check for an override; if present, read that instead
-        var o = overrides.indexOf(fileName);
-        if (o >= 0) {
-          console.log("overriding " + fileName + " with local copy");
-          var data = fs.readFileSync(overridesDir + "/" + fileName);
-          console.log(`L885 data: ${data}`);
-          processFile(fileName, data);
-          overrides.splice(o, 1);
-          e.autodrain();
-        } else {
-          e.on("data", function (c: any) {
-            data += c.toString();
-          });
-          e.on("end", function () {
-            console.log(e, typeof e);
-            console.log(`L894 data: ${data}`);
-            processFile(fileName, data);
-          });
-        }
-      } else {
-        e.autodrain();
+    // Read glyphs from the "extras" directory
+    var extras = fs.readdirSync(extrasDir);
+    extras.forEach(function (f: any) {
+      if (f.endsWith(".svg")) {
+        var data = fs.readFileSync(extrasDir + "/" + f);
+        // console.log(`L864 data: ${data}`);
+        processFile(f, data, targetDir);
       }
-    })
-    .on("close", generateTTX);
-});
+    });
+
+    // Get list of glyphs in the "overrides" directory, which will be used to replace
+    // same-named glyphs from the main source archive
+    var overrides = fs.readdirSync(overridesDir);
+
+    // Finally, we're ready to process the images from the main source archive:
+    fs.createReadStream(sourceZip)
+      .pipe(unzipper.Parse())
+      .on("entry", function (e: any) {
+        var data = Buffer.from("", "utf8");
+        var fileName = e.path.replace(/^.*\//, ""); // strip any directory names
+        if (
+          e.type === "File" &&
+          e.path.substring(e.path.length - 4, e.path.length) === ".svg"
+        ) {
+          // Check for an override; if present, read that instead
+          var o = overrides.indexOf(fileName);
+          if (o >= 0) {
+            console.log("overriding " + fileName + " with local copy");
+            var data = fs.readFileSync(overridesDir + "/" + fileName);
+            // console.log(`L885 data: ${data}`);
+            processFile(fileName, data, targetDir);
+            overrides.splice(o, 1);
+            e.autodrain();
+          } else {
+            e.on("data", function (c: any) {
+              data += c.toString();
+            });
+            e.on("end", function () {
+              // console.log(e, typeof e);
+              // console.log(`L894 data: ${data}`);
+              processFile(fileName, data, targetDir);
+            });
+          }
+        } else {
+          e.autodrain();
+        }
+      })
+      .on("close", () => {
+        generateTTX(targetDir, extraLigatures, fontName);
+      });
+  });
+};
+
+const main = () => {
+  const sourceZip = process.argv[2];
+  const overridesDir = process.argv[3];
+  const extrasDir = process.argv[4];
+  const targetDir = process.argv[5];
+  const fontName = process.argv[6];
+
+  var paths: Path[];
+
+  checkExistFont(fontName);
+  const extraLigatures = getExtraLigatures(extrasDir);
+  RemoveJunk(
+    targetDir,
+    extrasDir,
+    overridesDir,
+    sourceZip,
+    fontName,
+    extraLigatures
+  );
+};
+
+main();

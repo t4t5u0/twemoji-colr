@@ -1,7 +1,7 @@
 NPM        ?= npm
 NODE       ?= node
 PERL       ?= perl
-PYTHON     ?= python3
+PYTHON     ?= python3.8
 TTX        ?= ttx
 
 FONT_NAME  = Twemoji\ Mozilla
@@ -15,7 +15,7 @@ OVERRIDE_DIR = overrides
 EXTRA_DIR    = extras
 
 GRUNTFILE  = Gruntfile.js
-LAYERIZE   = layerize.js
+LAYERIZE   = src/layerize.js
 
 CODEPOINTS          = $(BUILD_DIR)/codepoints.js
 OT_SOURCE  	        = $(BUILD_DIR)/$(FONT_NAME).ttx
